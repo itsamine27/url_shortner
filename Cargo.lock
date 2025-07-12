@@ -2069,6 +2069,7 @@ name = "url_shortner"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "bytes",
  "dotenvy",
  "hyper 0.14.32",
  "serde",

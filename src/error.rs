@@ -15,8 +15,8 @@ pub enum Error {
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let (status, body) = match &self {
-            Error::Urlinvalid => (StatusCode::CONFLICT, self.to_string()),
-            Error::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "DB error".into()),
+            Self::Urlinvalid => (StatusCode::CONFLICT, self.to_string()),
+            Self::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "DB error".into()),
         };
         (status, body).into_response()
     }

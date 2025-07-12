@@ -15,3 +15,4 @@ sqlx = { version = "0.7", features = ["runtime-tokio-native-tls","postgres","mac
 hyper = "0.14"
 tower = { version = "0.4", features = ["util"] }
 thiserror = "1.0"
+bytes = "1"
