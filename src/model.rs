@@ -1,34 +1,31 @@
-
-use std::sync::Arc;
+use crate::ModelController;
+use crate::error::{Error, Result as myRes};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use tokio::sync::Mutex;
-use tracing::error;
-use crate::error::{Result as myRes, Error};
-use crate::ModelController;
 use sqlx::Row;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering::Acquire};
 #[derive(Serialize, Debug)]
-pub struct UrlManager{
+pub struct UrlManager {
     id: i32,
     long_url: String,
     short_url: String,
 }
 #[derive(Deserialize, Serialize)]
-pub struct Formurl{
+pub struct Formurl {
     long_url: String,
 }
 #[derive(Clone)]
-pub struct ModelControllerDB{
+pub struct ModelControllerDB {
     pub pool: PgPool,
 }
 
-impl ModelControllerDB{
-    pub const fn new(pool: PgPool) -> Self{
-        Self{pool}
+impl ModelControllerDB {
+    pub const fn new(pool: PgPool) -> Self {
+        Self { pool }
     }
-    pub async fn shorten_url(&self, data: Formurl, mc:&ModelController) -> myRes<UrlManager>{
-
-        let short_url:String = mc.ram.generate_short_url().await?;
+    pub async fn shorten_url(&self, data: Formurl, mc: &ModelController) -> myRes<UrlManager> {
+        let short_url: String = mc.ram.generate_short_url().await?;
         let store = sqlx::query_as!(
             UrlManager,
             "
@@ -39,12 +36,11 @@ impl ModelControllerDB{
             data.long_url,
             short_url,
         )
-
         .fetch_one(&self.pool)
         .await?;
         Ok(store)
     }
-    pub async fn fetchurl (&self, url:String)->myRes<String>{
+    pub async fn fetchurl(&self, url: String) -> myRes<String> {
         let store = sqlx::query(
             "
             SELECT long_url
@@ -59,60 +55,32 @@ impl ModelControllerDB{
     }
 }
 
-
 #[derive(Clone)]
-pub struct ModelControllerRAM{
-    pub inner: Arc<Mutex<String>>,
+pub struct ModelControllerRAM {
+    pub inner: Arc<AtomicU64>,
 }
-impl Default for ModelControllerRAM{
+impl Default for ModelControllerRAM {
     fn default() -> Self {
         Self::new()
     }
 }
-impl ModelControllerRAM{
-    pub fn new()->Self{
-        Self{
-            inner: Arc::new(Mutex::new("000000".to_string()))
+const TABLE: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+impl ModelControllerRAM {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(AtomicU64::new(0)),
         }
     }
-    #[allow(unused_assignments)]
-    pub async fn generate_short_url(&self)->myRes<String>{
-        let mut storeg = self.inner.lock().await;
-        let mut data = storeg.clone().into_bytes();
-        let mut next= 1;
-        let len = data.len();
-        loop  {
-            let last = data.get_mut(len-next);
-            if let Some(last) = last{
-                match last{
-                    b'9' => {
-                        *last = b'a';
-                    }
-                    b'z' => {
-                        *last= b'A';
-                    }
-                    b'Z' => {
-                        *last= b'0';
-                        next+=1;
-                        continue;
-                    }
-                    _ =>{
-                        *last +=1;
-                    }
-                    
-                }
-            }  
-            break;
+
+    pub async fn generate_short_url(&self) -> myRes<String> {
+        let data = self.inner.fetch_add(1, Acquire);
+        let url: Vec<u8> = (0..=5)
+            .rev()
+            .map(|n| TABLE[((data / 62u64.pow(n)) % 62) as usize])
+            .collect();
+        match String::from_utf8(url) {
+            Ok(sto) => Ok(sto),
+            Err(_) => Err(Error::Urlinvalid),
         }
-        let res=String::from_utf8(data).unwrap_or_else(|err|{
-            error!("an error has occured {err}");
-            String::new()
-        });
-        if res == *storeg{
-           return Err(Error::Urlinvalid);
-        }
-        (*storeg).clone_from(&res);
-        drop(storeg);
-        Ok(res)
     }
 }

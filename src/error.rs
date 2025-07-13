@@ -1,6 +1,6 @@
 // in src/error.rs
-use axum::response::{IntoResponse, Response};
 use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use thiserror::Error as thiser;
 
 #[derive(thiser, Debug)]
