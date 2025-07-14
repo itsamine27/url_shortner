@@ -9,6 +9,7 @@
 
 use std::net::SocketAddr;
 
+use crate::error::Result;
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
@@ -19,7 +20,6 @@ use dotenvy::dotenv;
 use serde::Deserialize;
 use sqlx::postgres::PgPoolOptions;
 use tracing::info;
-use crate::error::Result;
 mod error;
 use crate::model::{Formurl, ModelControllerDB, ModelControllerRAM};
 mod model;
@@ -39,9 +39,9 @@ async fn main() -> Result<()> {
         .max_connections(5)
         .connect(&url)
         .await?;
-    let db  = ModelControllerDB::new(pool);
+    let db = ModelControllerDB::new(pool);
     let ram = ModelControllerRAM::default();
-    let mc  = ModelController { db, ram };
+    let mc = ModelController { db, ram };
 
     // 3. init tracing AFTER building state
     tracing_subscriber::fmt::init();
@@ -77,7 +77,10 @@ async fn shorten_url(
 
     Ok(Json(mc.db.shorten_url(data, &mc).await?))
 }
-async fn fetchurl(Path(url): Path<String>, State(mc): State<ModelController>) -> Result<impl IntoResponse> {
+async fn fetchurl(
+    Path(url): Path<String>,
+    State(mc): State<ModelController>,
+) -> Result<impl IntoResponse> {
     let url = mc.db.fetchurl(url).await?;
     Ok(Redirect::temporary(&url))
 }

@@ -1,6 +1,9 @@
 // src/error.rs
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use std::{env::VarError, io};
-use axum::{http::StatusCode, response::{IntoResponse, Response}};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -16,16 +19,13 @@ pub enum Error {
 
     #[error("Failed to bind to address: {0}")]
     Io(#[from] io::Error),
-
 }
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let status = match self {
             Self::Urlinvalid => StatusCode::CONFLICT,
-            Self::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::EnvVar(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::EnvVar(_) | Self::Io(_) | Self::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         let msg = self.to_string();

@@ -25,7 +25,11 @@ use crate::{
 async fn test_shorten_url_handler() {
     dotenv().ok();
     let url = env::var("DATABASE_url").unwrap();
-    let pool = PgPoolOptions::new().max_connections(5).connect(&url).await.unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&url)
+        .await
+        .unwrap();
     let db = ModelControllerDB::new(pool);
     let ram = ModelControllerRAM::default();
     let mc = ModelController { db, ram };
@@ -45,8 +49,6 @@ async fn test_shorten_url_handler() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body_bytes = to_bytes(response.into_body(), 64 * 1024)
-        .await
-        .unwrap();
+    let body_bytes = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
     info!("Response: {}", String::from_utf8_lossy(&body_bytes));
 }
