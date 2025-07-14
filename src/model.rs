@@ -25,7 +25,7 @@ impl ModelControllerDB {
         Self { pool }
     }
     pub async fn shorten_url(&self, data: Formurl, mc: &ModelController) -> myRes<UrlManager> {
-        let short_url: String = mc.ram.generate_short_url().await?;
+        let short_url: String = mc.ram.generate_short_url()?;
         let store = sqlx::query_as!(
             UrlManager,
             "
@@ -72,7 +72,7 @@ impl ModelControllerRAM {
         }
     }
 
-    pub async fn generate_short_url(&self) -> myRes<String> {
+    pub fn generate_short_url(&self) -> myRes<String> {
         let data = self.inner.fetch_add(1, Acquire);
         let url: Vec<u8> = (0..=5)
             .rev()
