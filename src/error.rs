@@ -1,24 +1,35 @@
-// in src/error.rs
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use thiserror::Error as thiser;
+// src/error.rs
+use std::{env::VarError, io};
+use axum::{http::StatusCode, response::{IntoResponse, Response}};
+use thiserror::Error;
 
-#[derive(thiser, Debug)]
+#[derive(Error, Debug)]
 pub enum Error {
     #[error("URL generation wrapped around to the original")]
     Urlinvalid,
 
     #[error(transparent)]
     Database(#[from] sqlx::Error),
+
+    #[error("Missing or invalid environment variable: {0}")]
+    EnvVar(#[from] VarError),
+
+    #[error("Failed to bind to address: {0}")]
+    Io(#[from] io::Error),
+
 }
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        let (status, body) = match &self {
-            Self::Urlinvalid => (StatusCode::CONFLICT, self.to_string()),
-            Self::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "DB error".into()),
+        let status = match self {
+            Self::Urlinvalid => StatusCode::CONFLICT,
+            Self::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::EnvVar(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
-        (status, body).into_response()
+
+        let msg = self.to_string();
+        (status, msg).into_response()
     }
 }
 

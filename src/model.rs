@@ -26,6 +26,7 @@ impl ModelControllerDB {
     }
     pub async fn shorten_url(&self, data: Formurl, mc: &ModelController) -> myRes<UrlManager> {
         let short_url: String = mc.ram.generate_short_url()?;
+        println!("{short_url:?}sfds");
         let store = sqlx::query_as!(
             UrlManager,
             "

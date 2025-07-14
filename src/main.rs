@@ -7,20 +7,19 @@
 #![allow(clippy::absolute_paths)]
 #![allow(clippy::module_name_repetitions)]
 
-use std::{env, net::SocketAddr};
+use std::net::SocketAddr;
 
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::{Html, IntoResponse, Redirect, Response},
+    response::{Html, IntoResponse, Redirect},
     routing::{get, post},
-    serve,
 };
+use dotenvy::dotenv;
 use serde::Deserialize;
 use sqlx::postgres::PgPoolOptions;
-use tokio::net::TcpListener;
-use tracing::{debug, error, info};
+use tracing::info;
+use crate::error::Result;
 mod error;
 use crate::model::{Formurl, ModelControllerDB, ModelControllerRAM};
 mod model;
@@ -32,40 +31,34 @@ pub struct ModelController {
     pub ram: ModelControllerRAM,
 }
 #[tokio::main]
-async fn main() {
-    dotenvy::dotenv().ok();
-    let url = env::var("DATABASE_url").unwrap_or_else(|err| {
-        error!(" Environment variable `DATABASE_url` not found.{err}");
-        std::process::exit(1);
-    });
-    let pool = match PgPoolOptions::new().max_connections(5).connect(&url).await {
-        Ok(pg) => pg,
-        Err(err) => {
-            error!("internel server error {err}");
-            std::process::exit(1)
-        }
-    };
-    let db = ModelControllerDB::new(pool);
+async fn main() -> Result<()> {
+    dotenv().ok();
+
+    let url = std::env::var("DATABASE_URL")?;
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&url)
+        .await?;
+    let db  = ModelControllerDB::new(pool);
     let ram = ModelControllerRAM::default();
-    let mc = ModelController { db, ram };
+    let mc  = ModelController { db, ram };
+
+    // 3. init tracing AFTER building state
     tracing_subscriber::fmt::init();
+
+    // 4. build app
     let app = Router::new()
         .route("/", get(hello))
         .route("/:url", get(fetchurl))
         .route("/api/shortner", post(shorten_url))
         .with_state(mc);
+
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
-    info!("lisening on port http://{addr}");
-    let connect = match TcpListener::bind(&addr).await {
-        Ok(lis) => lis,
-        Err(err) => {
-            error!("internel server error {err}");
-            std::process::exit(1);
-        }
-    };
-    serve(connect, app)
-        .await
-        .unwrap_or_else(|err| debug!("internel server error {err}"));
+    info!("listening on http://{addr}");
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app.into_make_service()).await?;
+    Ok(())
 }
 #[derive(Deserialize)]
 struct Qdata {
@@ -79,23 +72,12 @@ async fn hello(Query(data): Query<Qdata>) -> impl IntoResponse {
 async fn shorten_url(
     State(mc): State<ModelController>,
     Json(data): Json<Formurl>,
-) -> Result<impl IntoResponse, Response> {
+) -> Result<impl IntoResponse> {
     info!("Received request to shorten URL");
 
-    match mc.db.shorten_url(data, &mc).await {
-        Ok(url) => {
-            info!("suceess operation {url:?}");
-            Ok(Json(url))
-        }
-        Err(err) => {
-            error!("Database error: {err:?}");
-            Err(err.to_string().into_response())
-        }
-    }
+    Ok(Json(mc.db.shorten_url(data, &mc).await?))
 }
-async fn fetchurl(Path(url): Path<String>, State(mc): State<ModelController>) -> impl IntoResponse {
-    (mc.db.fetchurl(url).await).map_or_else(
-        |_| (StatusCode::NOT_FOUND, "Short URL not found").into_response(),
-        |long_url| Redirect::temporary(&long_url).into_response(),
-    )
+async fn fetchurl(Path(url): Path<String>, State(mc): State<ModelController>) -> Result<impl IntoResponse> {
+    let url = mc.db.fetchurl(url).await?;
+    Ok(Redirect::temporary(&url))
 }
