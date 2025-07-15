@@ -38,7 +38,7 @@ async fn test_shorten_url_handler() {
         .route("/api/shortner", post(shorten_url))
         .with_state(mc);
 
-    let payload = r#"{"long_url": "https://example.com/b"}"#;
+    let payload = r#"{"long_url": "https://example.com/d"}"#;
     let request = Request::builder()
         .method("POST")
         .uri("/api/shortner")

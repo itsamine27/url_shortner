@@ -85,3 +85,17 @@ impl ModelControllerRAM {
         }
     }
 }
+#[cfg(test)]
+mod test{
+    use crate::model::ModelControllerRAM;
+
+    #[test]
+    fn short_url(){
+        let mc = ModelControllerRAM::default();
+        let short_url = mc.generate_short_url();
+        assert_eq!(short_url.unwrap(), "000000");
+        let short_url = mc.generate_short_url();
+        assert_eq!(short_url.unwrap(), "000001");
+
+    }
+}
